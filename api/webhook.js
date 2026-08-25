@@ -1,6 +1,5 @@
 import OpenAI from 'openai';
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const GRAPH_VERSION = process.env.META_GRAPH_VERSION || 'v24.0';
 const MODEL = process.env.OPENAI_MODEL || 'gpt-5.6';
 
@@ -40,6 +39,10 @@ function extractIncomingWhatsApp(body) {
 }
 
 async function generateReply(text) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error('OPENAI_API_KEY missing');
+
+  const openai = new OpenAI({ apiKey });
   const response = await openai.responses.create({
     model: MODEL,
     instructions: process.env.MBS_SYSTEM_PROMPT || DEFAULT_PROMPT,
@@ -86,7 +89,6 @@ export default async function handler(req, res) {
 
   if (req.method !== 'POST') return res.status(405).json({ ok: false });
 
-  // Meta expects a fast 200. Processing is intentionally sequential and bounded.
   try {
     const messages = extractIncomingWhatsApp(req.body);
     for (const message of messages) {
@@ -96,7 +98,6 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true, processed: messages.length });
   } catch (error) {
     console.error('MBS Radar webhook error', error);
-    // Return 200 to avoid Meta retry storms while surfacing the failure in logs.
     return res.status(200).json({ ok: false, error: 'processing_failed' });
   }
 }
